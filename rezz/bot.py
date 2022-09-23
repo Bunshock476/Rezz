@@ -3,6 +3,7 @@ import math
 import os
 import random
 import re
+import asyncio
 
 # First party imports
 from .errors import *
@@ -24,6 +25,7 @@ token = os.getenv("DISCORD_TOKEN")
 guild_id = discord.Object(id=os.getenv("GUILD_ID"))
 
 embed_color = discord.Color(0xEB4E2F)
+inactive_timeout = 60 # in seconds
 
 class LavalinkVoiceClient(discord.VoiceClient):
     """Voice client that connects Lavalink events to Discord.py voice client
@@ -59,7 +61,7 @@ class LavalinkVoiceClient(discord.VoiceClient):
         }
         await self.lavalink.voice_update_handler(lavalink_data)
 
-    async def on_voice_state_update(self, data) -> None:
+    async def on_voice_state_update(self, data) -> None:        
         lavalink_data = {
             "t": "VOICE_STATE_UPDATE",
             "d": data
@@ -99,16 +101,25 @@ class Bot(discord.Client):
 
         Notes
         -----
-        Currently only checks for QueueEndEvent and disconnects after it
+        Currently only checks for QueueEndEvent and disconnects from voice channel
+        after `inactive_timeout`
 
         Parameters
         ----------
         event : lavalink.Event
         """
         if isinstance(event, lavalink.events.QueueEndEvent):
-            guild_id = event.player.guild_id
-            guild = self.get_guild(guild_id)
-            await guild.voice_client.disconnect()
+            player: lavalink.DefaultPlayer = event.player
+            await player.stop()
+            time = 0
+            while time < inactive_timeout:
+                await asyncio.sleep(1)
+                time += 1
+                if player.is_playing:
+                    break
+            else:
+                vc = discord.utils.get(self.voice_clients, guild=discord.utils.get(self.guilds, id=player.guild_id))
+                await vc.disconnect()
 
 # Setup the default intents + message_contents
 intents = discord.Intents.default()
@@ -125,7 +136,7 @@ async def on_ready():
 
     Used for Lavalink setup
     """
-    print(f"Logged in as {client.user} (ID: {client.user.id}")
+    print(f"Logged in as {client.user} (ID: {client.user.id})")
     print("------")
 
     # Checks if client already has a Lavalink client and create ones if it doesn't
@@ -565,7 +576,8 @@ async def queue(interaction: discord.Interaction, page: int = 1):
 
     pages = int(math.ceil(len(queue) / max_tracks_per_page))
 
-
+    if len(queue) <= 0:
+        return await interaction.response.send_message("Queue is currently empty")
     if page <= 0 or page > pages:
         return await interaction.response.send_message(f"Page out of bounds, please use a value between {1}-{pages}")
 
