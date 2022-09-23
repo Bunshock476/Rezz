@@ -127,3 +127,9 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Lavalink
+Lavalink/
+
+# Test file
+test.py

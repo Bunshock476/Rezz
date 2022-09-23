@@ -1,2 +1,2 @@
 # Rezz
-Discord music bot made in python for a cyberpunk RPG
+Discord music Bot made in python for a Cyberpunk RPG
